@@ -4,8 +4,11 @@ package BankingActivity;
 import java.awt.CardLayout;
 import java.awt.Color;
 import java.awt.Font;
+import java.awt.HeadlessException;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.FocusAdapter;
+import java.awt.event.FocusEvent;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.sql.Connection;
@@ -15,23 +18,34 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import javax.swing.*;
+import javax.swing.table.TableModel;
+//import net.proteanit.sql.DbUtils;
 import org.jdesktop.swingx.JXDatePicker;
 
 
 public class Transactions extends JFrame{
     private JPanel pnl_side,pnl_topUser,pnl_bottomMenu,pnl_transactions,pnl_display,pnl_account,pnl_cardLayout,
-            pnl_balance,pnl_BottomTransact;
-    private JPanel pnl_withdraw,pnl_deposit,pnl_accountDetails,pnl_enterAmount;
-    private JLabel lbl_transactions,lbl_accNum,lbl_userIcon,lbl_deposit,lbl_withdraw,lbl_accountDetails,lbl_enterAmount,lbl_balance;
+            pnl_balance,pnl_BottomTransact,pnl_logs;
+    private JPanel pnl_withdraw,pnl_deposit,pnl_accountDetails,pnl_enterAmount,wrapper,pnl_menulogs;
+    private JLabel lbl_transactions,lbl_accNum,lbl_userIcon,lbl_deposit,lbl_withdraw,lbl_accountDetails,
+            lbl_enterAmount,lbl_balance,lbl_menulogs;
     private JTextField textField_accNum,textField_amount,textField_balance;
     private JButton btn_deposit,btn_withdraw,btn_logout;
     private JSeparator separator_enterAmount;
+    private JXDatePicker jxdatepicker;
+    private JTextField new_pin;
+    private final JTable table_logs  = new JTable();
+    private JScrollPane scrollpane ;
     
-    static String account_number = "";    
+    static String account_number = "",customer_id="";
+    TableModel model ;
     
     
     CardLayout cl = new CardLayout(); 
@@ -57,6 +71,7 @@ public class Transactions extends JFrame{
         setUpCardLayoutPanel();
         add(pnl_cardLayout); 
         setUpAccountDetails();
+        setUpPanelLogs();
         
     }  
     
@@ -134,6 +149,14 @@ public class Transactions extends JFrame{
         propertySideMenuItems(pnl_withdraw, lbl_withdraw, 250, 40, 0, 120);        
         pnl_bottomMenu.add(pnl_withdraw);
         
+        pnl_menulogs = new JPanel();
+        pnl_menulogs.setLayout(null);
+        lbl_menulogs = new JLabel("LOGS");
+        propertyLabels(lbl_menulogs);
+        pnl_menulogs.setBackground(new Color(91, 178, 172));
+        propertySideMenuItems(pnl_menulogs, lbl_menulogs, 250, 40, 0, 160);
+        pnl_bottomMenu.add(pnl_menulogs);
+        
         btn_logout = new JButton("LOGOUT");
         btn_logout.setForeground(Color.white);
         btn_logout.setBackground(new Color(46, 73, 138));
@@ -153,10 +176,11 @@ public class Transactions extends JFrame{
         });
         
         //User friendlyness
-        menuItemClicked(pnl_accountDetails, pnl_transactions, pnl_deposit, pnl_withdraw);
-        subMenuTransactionsClicked(pnl_deposit,pnl_accountDetails, pnl_transactions,  pnl_withdraw);
-        menuItemClicked(pnl_transactions, pnl_deposit, pnl_accountDetails, pnl_withdraw);
-        subMenuTransactionsClicked(pnl_withdraw,pnl_accountDetails, pnl_transactions, pnl_deposit);
+        menuItemClicked(pnl_accountDetails, pnl_transactions, pnl_deposit, pnl_withdraw,pnl_menulogs);
+        subMenuTransactionsClicked(pnl_deposit,pnl_accountDetails,pnl_withdraw,pnl_menulogs);
+        menuItemClicked(pnl_transactions, pnl_deposit, pnl_accountDetails, pnl_withdraw,pnl_menulogs);
+        menuItemClicked(pnl_menulogs,pnl_transactions, pnl_deposit, pnl_accountDetails, pnl_withdraw);
+        subMenuTransactionsClicked(pnl_withdraw,pnl_accountDetails, pnl_deposit,pnl_menulogs);
         
     }
     
@@ -179,6 +203,13 @@ public class Transactions extends JFrame{
         pnl_cardLayout.add(pnl_display,"card_display");
         cl.show(pnl_cardLayout, "card_display");
         
+        //Panel logs to show the transaction logs for the user
+        pnl_logs = new JPanel();
+        pnl_logs.setLayout(null);
+        pnl_logs.setBackground(Color.WHITE);
+        pnl_cardLayout.add(pnl_logs, "card_logs");
+        
+        
                 //Showing the display panel
             pnl_transactions.addMouseListener(new MouseAdapter() {
                 @Override
@@ -198,6 +229,15 @@ public class Transactions extends JFrame{
                     showAccountDetails();
                 }
                 
+            });
+                //Showing the logs panel
+            pnl_menulogs.addMouseListener(new MouseAdapter() {
+                @Override
+                public void mouseClicked(MouseEvent e) {
+                    cl.show(pnl_cardLayout, "card_logs");
+                    showTransactionLogs();
+                }
+
             });
             
                 /*
@@ -305,16 +345,17 @@ public class Transactions extends JFrame{
         
     }
     
+    
     /*
             Components required for showing the details
     */
         JTextField textField_fname,textField_lname,textField_idnumber,textField_dob;
         JLabel lbl_fname,lbl_lname,lbl_dob,lbl_idnumber;
-        JSeparator separator_fname,separator_lname,separator_idnumber,separator_dob;
-        JButton btn_changePin,btn_editDetails,btn_submitChanges;
+        JSeparator separator_fname,separator_lname,separator_idnumber,separator_dob,separator_newpin;
+        JButton btn_changePin,btn_editDetails,btn_submitChanges,btn_submitPin;
         
     private void setUpAccountDetails(){
-        JPanel wrapper = new JPanel();
+        wrapper = new JPanel();
         wrapper.setLayout(null);
         wrapper.setBackground(Color.white);
         wrapper.setBounds(0,20,430,340);
@@ -353,6 +394,7 @@ public class Transactions extends JFrame{
         wrapper.add(lbl_idnumber);
         textField_idnumber = new JTextField();
         propertyTextField(textField_idnumber);
+        textField_idnumber.setDocument(new MaxLengthTextDocument(15));
         textField_idnumber.setBounds(15,175,200,30);
         wrapper.add(textField_idnumber);
         separator_idnumber = new JSeparator();
@@ -374,7 +416,7 @@ public class Transactions extends JFrame{
         wrapper.add(separator_dob);
         
         //when editing the Date of Birth
-        JXDatePicker jxdatepicker = new JXDatePicker();             
+        jxdatepicker = new JXDatePicker();             
         jxdatepicker.setBounds(15, 250, 200, 30);
         jxdatepicker.setFormats("yyyy-MM-dd");
         wrapper.add(jxdatepicker);
@@ -385,6 +427,16 @@ public class Transactions extends JFrame{
         btn_changePin.setBackground(new Color(251, 204, 0));
         btn_changePin.setBounds(15,300,200,30);
         wrapper.add(btn_changePin);
+        
+        btn_submitPin = new JButton("SUBMIT");
+        btn_submitPin.setBackground(new Color(0, 179, 66));
+        btn_submitPin.setBounds(230,300,200,30);
+        btn_submitPin.setForeground(Color.white);
+        btn_submitPin.setVisible(false);        
+        wrapper.add(btn_submitPin);
+        
+        
+        clickedResetPin();
         
         btn_editDetails = new JButton("EDIT");
         btn_editDetails.setForeground(Color.white);
@@ -427,14 +479,16 @@ public class Transactions extends JFrame{
         btn_submitChanges.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
-                editAccountDetails();
-                btn_editDetails.setVisible(true);
-                btn_submitChanges.setVisible(false);
-                textField_dob.setVisible(true);
-                jxdatepicker.setVisible(false);
-                setUnEditable(textField_fname,textField_lname,textField_dob,textField_idnumber);
+                if ( editAccountDetails()) {
+                    btn_editDetails.setVisible(true);
+                    btn_submitChanges.setVisible(false);
+                    textField_dob.setVisible(true);
+                    jxdatepicker.setVisible(false);
+                    setUnEditable(textField_fname,textField_lname,textField_dob,textField_idnumber);                    
+                }                
             }
-        });
+        });     
+        
         
     }
     
@@ -470,36 +524,20 @@ public class Transactions extends JFrame{
             JOptionPane.showMessageDialog(Transactions.this, "Please enter an amount");
         }
             int currentBalance = Integer.parseInt(textField_balance.getText());
-            int newBalance = currentBalance + Integer.parseInt(textField_amount.getText());
-            
-        try {
-            Class.forName(DatabaseConnection.DRIVER);
-            try (Connection connection = DriverManager.getConnection(DatabaseConnection.URL, DatabaseConnection.USER, DatabaseConnection.PASSWORD)) {
-                String query = "UPDATE account SET account_balance = ? WHERE account_number = ?";
-                PreparedStatement prepared_statement = connection.prepareStatement(query);
-                prepared_statement.setInt(1,newBalance);
-                prepared_statement.setString(2,textField_accNum.getText());
-                prepared_statement.executeUpdate();
-                
-                
-                /*
-                    Updating the transaction logs
-                */
-                query = "INSERT INTO transaction_log(account_number,transaction_type,amount) VALUES (?,'deposit',?);";
-                prepared_statement = connection.prepareStatement(query);
-                prepared_statement.setString(1, textField_accNum.getText());
-                prepared_statement.setInt(2, Integer.parseInt(textField_amount.getText()));
-                prepared_statement.executeUpdate();
-                
+            /*
+                Ensuring that the user only enters numbers in the amount field
+            */
+              int newBalance ;
+              try {
+                    newBalance = currentBalance + Integer.parseInt(textField_amount.getText());
+                EntityOperations.deposit(this, newBalance, account_number, textField_amount.getText());
                 fetchDetails();
                 textField_amount.setText("");
-                
-                
-            }
-            
-        } catch (ClassNotFoundException | SQLException e) {
-            JOptionPane.showMessageDialog(this, e.getMessage());
-        }
+                     
+              } catch (NumberFormatException e) {
+                  JOptionPane.showMessageDialog(this, "Please enter a valid input");
+                  textField_amount.setText("");
+              }     
         
     }
     
@@ -513,47 +551,58 @@ public class Transactions extends JFrame{
         }
         
         int currentBalance = Integer.parseInt(textField_balance.getText());
-        if (currentBalance < Integer.parseInt(textField_amount.getText())) {
+        try {
+            if (currentBalance < Integer.parseInt(textField_amount.getText())) {
             JOptionPane.showMessageDialog(this, "Dear customer, you have insufficient funds");
-        }else{
-            int newBalance = currentBalance - Integer.parseInt(textField_amount.getText());
-            
-            try {
-            Class.forName(DatabaseConnection.DRIVER);
-            try (Connection connection = DriverManager.getConnection(DatabaseConnection.URL, DatabaseConnection.USER, DatabaseConnection.PASSWORD)) {
-                String query = "UPDATE account SET account_balance = ? WHERE account_number = ?";
-                PreparedStatement prepared_statement = connection.prepareStatement(query);
-                prepared_statement.setInt(1,newBalance);
-                prepared_statement.setString(2,textField_accNum.getText());
-                prepared_statement.executeUpdate();
-                
-                 /*
-                    Updating the transaction logs
-                */
-                query = "INSERT INTO transaction_log(account_number,transaction_type,amount) VALUES (?,'withdrawal',?);";
-                prepared_statement = connection.prepareStatement(query);
-                prepared_statement.setString(1, textField_accNum.getText());
-                prepared_statement.setInt(2, Integer.parseInt(textField_amount.getText()));
-                prepared_statement.executeUpdate();
-                
+            }else{
+                int newBalance = currentBalance - Integer.parseInt(textField_amount.getText());
+                EntityOperations.deposit(this, newBalance, account_number, textField_amount.getText());
                 fetchDetails();
                 textField_amount.setText("");
+              
             }
-            
-        } catch (ClassNotFoundException | SQLException e) {
-            JOptionPane.showMessageDialog(this, e.getMessage());
-        }
-        }
-        
+        } catch (HeadlessException | NumberFormatException e) {
+            JOptionPane.showMessageDialog(this, "Please enter a valid input");
+            textField_amount.setText("");
+        }    
     }
     
-    private void editAccountDetails(){
+    private Boolean editAccountDetails(){
         /*
             Changes are saved to the relevant user
         */
-        
-        
-        
+         //Check all fields are filled               
+                    Date dob = jxdatepicker.getDate();               
+
+                     if (textField_fname.getText().isEmpty()
+                             ||textField_idnumber.getText().isEmpty()
+                             ||textField_lname.getText().isEmpty()) {
+                         JOptionPane.showMessageDialog(Transactions.this, "Please fill in all fields");
+                         
+                     }else if (!isAbove18(dob)) {
+                         JOptionPane.showMessageDialog(Transactions.this, "Account holders must be above 18 years");
+                         
+                     }else {
+                         try {
+                             Class.forName(DatabaseConnection.DRIVER);
+                             Connection connect = DriverManager.getConnection(DatabaseConnection.URL, DatabaseConnection.USER, DatabaseConnection.PASSWORD);
+                             String query = "UPDATE customer SET first_name = ?, last_name = ?,id_number = ?, DOB = ? WHERE customer_id = ?;";
+                             PreparedStatement prepared_statement = connect.prepareStatement(query);
+                             prepared_statement.setString(1, textField_fname.getText());
+                             prepared_statement.setString(2, textField_lname.getText());
+                             prepared_statement.setString(3, textField_idnumber.getText());
+                             SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd");                   
+                             prepared_statement.setString(4, df.format(jxdatepicker.getDate()));
+                             prepared_statement.setString(5, customer_id);
+
+                             prepared_statement.executeUpdate();
+                             return true;
+                         } catch (ClassNotFoundException | SQLException ex) {
+                             ex.printStackTrace();
+
+                         }
+                     }
+        return false;                       
     }
     
     private void showAccountDetails(){
@@ -568,6 +617,7 @@ public class Transactions extends JFrame{
                 ResultSet results = prepared_statement.executeQuery();
                 
                 while(results.next()){
+                    customer_id = results.getString("customer_id");
                     textField_fname.setText(results.getString("first_name"));
                     textField_lname.setText(results.getString("last_name"));
                     textField_idnumber.setText(results.getString("id_number"));
@@ -578,6 +628,41 @@ public class Transactions extends JFrame{
             prepared_statement.close();
         } catch (ClassNotFoundException | SQLException ex) {
             Logger.getLogger(Transactions.class.getName()).log(Level.SEVERE, null, ex);
+        }
+    }
+    
+    
+    /*
+        Set up for the panel to show the transaction logs
+    */
+    private void setUpPanelLogs(){
+        scrollpane = new JScrollPane(table_logs);
+        scrollpane.setBounds(0,0,450,500);
+        pnl_logs.add(scrollpane);
+    }
+    
+    private void showTransactionLogs(){
+        /*
+            Show a table with transaction logs
+        */                  
+        try {
+            Class.forName(DatabaseConnection.DRIVER);
+            Connection connect = DriverManager.getConnection(DatabaseConnection.URL,DatabaseConnection.USER,DatabaseConnection.PASSWORD);
+            String query = "SELECT transaction_id AS 'ID',transaction_type AS 'TRANSACTION',amount AS 'AMOUNT',transaction_time AS 'TIMESTAMP' FROM transaction_log WHERE account_number = ?;";
+            PreparedStatement prepared_statement = connect.prepareStatement(query);
+            prepared_statement.setString(1, textField_accNum.getText());        
+            
+            
+            ResultSet results = prepared_statement.executeQuery();
+            
+            table_logs.setModel(DbUtils.resultSetToTableModel(results));
+            table_logs.getColumnModel().getColumn(0).setPreferredWidth(0);
+            table_logs.getColumnModel().getColumn(1).setPreferredWidth(10);
+            table_logs.getColumnModel().getColumn(2).setPreferredWidth(10);           
+                        
+            
+        } catch (ClassNotFoundException | SQLException e) {
+            e.printStackTrace();
         }
     }
     
@@ -604,6 +689,78 @@ public class Transactions extends JFrame{
         field3.setBackground(Color.white);
         field4.setBackground(Color.white);
     }
+    
+    private void changePin(){
+        btn_submitPin.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                if (new_pin.getText().isEmpty()){
+                    JOptionPane.showMessageDialog(Transactions.this, "Please fill the field");
+                }else{
+                    try {
+                        Class.forName(DatabaseConnection.DRIVER);
+                        Connection connect = DriverManager.getConnection(DatabaseConnection.URL, DatabaseConnection.USER, DatabaseConnection.PASSWORD);
+                        String query = "UPDATE account SET hashedPin = ? WHERE account_number = ?;";
+                        PreparedStatement prepared_statement = connect.prepareStatement(query);
+                        String hashedPin = BCrypt.hashpw(new_pin.getText(), BCrypt.gensalt(12));
+                        prepared_statement.setString(1,hashedPin);
+                        prepared_statement.setString(2,textField_accNum.getText());
+                        prepared_statement.executeUpdate();
+                        
+                        
+                        new_pin.setVisible(false);
+                        btn_changePin.setVisible(true);
+                        btn_submitPin.setVisible(false);
+                        
+                        JOptionPane.showMessageDialog(Transactions.this, "PIN changed");          
+                      
+                    } catch (ClassNotFoundException | SQLException exe) {
+                        exe.printStackTrace();
+                    }                    
+                }
+            }
+            
+        });
+       
+    }
+    
+    private void clickedResetPin(){
+        
+        btn_changePin.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                btn_changePin.setVisible(false);
+                btn_submitPin.setVisible(true);              
+               
+                
+                //When resetting the pin 
+                new_pin = new JTextField("Enter new pin");
+                propertyTextField(new_pin);
+                new_pin.setBackground(Color.LIGHT_GRAY);
+                new_pin.setBounds(15,300,200,30);
+                wrapper.add(new_pin);                
+                
+                /*
+                When the field is clicked to make the text disappear
+                */
+                new_pin.addFocusListener(new FocusAdapter() {
+                    @Override
+                    public void focusGained(FocusEvent e) {
+                        new_pin.setText(""); 
+                        new_pin.setEditable(true);                        
+                        new_pin.setDocument(new MaxLengthTextDocument(5));
+                    }
+                    
+                });
+
+                changePin();
+                
+                               
+            }
+        });
+        
+    }
+    
     /*    
             Utilities to help in the stylings
     */
@@ -624,34 +781,35 @@ public class Transactions extends JFrame{
     
     }
      
-    private void menuItemClicked(JPanel panel1,JPanel panel2,JPanel panel3,JPanel panel4){
-        panel1.addMouseListener(new MouseAdapter() {
+    private void menuItemClicked(JPanel... panels){
+        
+        panels[0].addMouseListener(new MouseAdapter() {
          Color PanelUnclickedColor = new Color(66, 135, 130);
          Color PanelClickedColor = new Color (91, 178, 172);
             @Override
             public void mouseClicked(MouseEvent e) {
-                panel1.setBackground(PanelClickedColor);
-                panel2.setBackground(PanelUnclickedColor);
-                panel3.setBackground(PanelUnclickedColor);
-                panel4.setBackground(PanelUnclickedColor);                    
+                panels[0].setBackground(PanelClickedColor);
+                for (int i = 1; i < panels.length; i++) {
+                    panels[i].setBackground(PanelUnclickedColor);
+                }
                 
             }
            
         });
     }
     
-    private void subMenuTransactionsClicked(JPanel panel1,JPanel panel2,JPanel panel3,JPanel panel4){
-        panel1.addMouseListener(new MouseAdapter() {
+    private void subMenuTransactionsClicked(JPanel... panels){
+        panels[0].addMouseListener(new MouseAdapter() {
          Color PanelUnclickedColor = new Color(66, 135, 130);
          Color PanelClickedColor = new Color (91, 178, 172);
          Color subMenuClickedColor = new Color(53, 99, 96);
             @Override
             public void mouseClicked(MouseEvent e) {
-                panel1.setBackground(subMenuClickedColor);
-                panel2.setBackground(PanelUnclickedColor);
-                panel3.setBackground(PanelClickedColor);
-                panel4.setBackground(PanelUnclickedColor);                    
-                
+                panels[0].setBackground(subMenuClickedColor);
+                pnl_transactions.setBackground(PanelClickedColor);
+                for (int i = 1; i < panels.length; i++) {
+                    panels[i].setBackground(PanelUnclickedColor);
+                }               
             }
            
         });
@@ -669,6 +827,20 @@ public class Transactions extends JFrame{
     private void propertyLabelsAccountDetails(JLabel label){
         label.setFont(new Font("Sans serif",Font.PLAIN,12));
         label.setForeground(new Color(66, 135, 130));
+    }
+    
+    //Function to check if user is 18 and above
+    private Boolean isAbove18(Date date){
+        LocalDate today = LocalDate.now();
+        LocalDate dob = convertToLocalDateViaInstant(date);
+        long years = dob.until(today, ChronoUnit.YEARS);
+        return years >= 18;
+    }
+    //Converts Date to LocalDate
+    public LocalDate convertToLocalDateViaInstant(Date dateToConvert) {
+        return dateToConvert.toInstant()
+        .atZone(ZoneId.systemDefault())
+        .toLocalDate();
     }
     
     

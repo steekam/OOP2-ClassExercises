@@ -5,19 +5,12 @@ import java.awt.Color;
 import java.awt.Font;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.text.SimpleDateFormat;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import javax.swing.*;
 import java.util.*;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 import org.jdesktop.swingx.*;
 
 
@@ -93,6 +86,7 @@ public class AccountCreation extends JFrame{
         pnl_left.add(lbl_idnumber);
         textField_idnumber = new JTextField();
         propertyTextField(textField_idnumber);
+        textField_idnumber.setDocument(new MaxLengthTextDocument(15));
         textField_idnumber.setBounds(15,235,200,30);
         pnl_left.add(textField_idnumber);
         separator_idnumber = new JSeparator();
@@ -112,15 +106,11 @@ public class AccountCreation extends JFrame{
         lbl_pin = new JLabel("ACCOUNT PIN");
         propertyLabels(lbl_pin);
         lbl_pin.setBounds(15,335,100,30);
-        pnl_left.add(lbl_pin);       
-        
-        //Setting maximum character to be four
-        MaxLengthTextDocument maxLength = new MaxLengthTextDocument();
-	maxLength.setMaxChars(5);//4 is the maximum number of character
-        
+        pnl_left.add(lbl_pin);         
+       
         pin = new JPasswordField();
         propertyPasswordField(pin);
-        pin.setDocument(maxLength);
+        pin.setDocument(new MaxLengthTextDocument(5));
         pin.setBounds(15,360,100,30);
         pnl_left.add(pin);
         separator_pin1 = new JSeparator();
@@ -188,77 +178,8 @@ public class AccountCreation extends JFrame{
                     //Add user to database
                     //
                     //
-                   try {
-                       
-                       Class.forName(DatabaseConnection.DRIVER);
-                       Connection connection = DriverManager.getConnection(DatabaseConnection.URL, DatabaseConnection.USER, DatabaseConnection.PASSWORD);
-                       //Check user exists using National ID number
-                       String query = "SELECT * FROM customer WHERE id_number = ?;";
-                       PreparedStatement prepared_statement = connection.prepareStatement(query);
-                       prepared_statement.setString(1,textField_idnumber.getText());
-                       ResultSet results = prepared_statement.executeQuery();
-                       
-                       if (!results.isBeforeFirst()) {
-                           //Adding user to the customer account
-                            query = "INSERT INTO customer(first_name,last_name,id_number,DOB) VALUES(?,?,?,?);";
-                            prepared_statement = connection.prepareStatement(query);
-
-                            prepared_statement.setString(1, textField_fname.getText());
-                            prepared_statement.setString(2, textField_lname.getText());
-                            prepared_statement.setString(3, textField_idnumber.getText());
-                            prepared_statement.setString(4, dobString);
-                            prepared_statement.executeUpdate();
-                            
-                            //
-                            //Setting up the account for the user
-                            //
-                                //Retrieve user ID
-                            query = "SELECT customer_id FROM customer WHERE id_number = ?;";
-                            prepared_statement = connection.prepareStatement(query);
-                            prepared_statement.setInt(1, Integer.parseInt(textField_idnumber.getText()));
-                            results = prepared_statement.executeQuery();
-                            
-                            String customer_id = "";
-                            while(results.next()){
-                                customer_id = results.getString("customer_id");
-                            }
-                            
-                            //Setting up account
-                            String hashedPin = BCrypt.hashpw(String.valueOf(pin.getPassword()), BCrypt.gensalt(12));                            
-                            query = "INSERT INTO account(customer_id,account_balance,hashedPin) VALUES(?,?,?)";
-                            connection.prepareStatement(query);
-                            prepared_statement = connection.prepareStatement(query);                            
-                            prepared_statement.setString(1, customer_id);
-                            prepared_statement.setInt(2, 0);
-                            prepared_statement.setString(3, hashedPin);
-                            prepared_statement.executeUpdate();
-                            
-                            //Retrieve account account number
-                            query = "SELECT account_number FROM account WHERE hashedPin = ?;";
-                            prepared_statement = connection.prepareStatement(query);
-                            prepared_statement.setString(1, hashedPin);
-                            results = prepared_statement.executeQuery();
-                            
-                            String acc_number = "";
-                            while(results.next()){
-                                acc_number = results.getString("account_number");
-                            }
-                            
-                            JOptionPane.showMessageDialog(AccountCreation.this, "Welcome to the Strata. \n Your account number: "+acc_number);
-                            AccountCreation.this.dispose();
-                            Dashboard frame = new Dashboard();
-                            frame.setVisible(true);
-                                
-                       }else{
-                           JOptionPane.showMessageDialog(AccountCreation.this, "User already exists");
-                       }                       
-                       
-                       connection.close();
-                       
-                   } catch (ClassNotFoundException | SQLException ex) {
-                       Logger.getLogger(AccountCreation.class.getName()).log(Level.SEVERE, null, ex);
-                   }
-                    
+                    EntityOperations.createAccount(textField_fname.getText(), textField_lname.getText(), textField_idnumber.getText(),
+                           dobString, String.valueOf(pin.getPassword()), AccountCreation.this);                   
                 }
             }
         });

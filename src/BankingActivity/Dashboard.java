@@ -5,13 +5,6 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.sql.Connection;
-import java.sql.DriverManager;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.logging.Level;
-import java.util.logging.Logger;
 
 
 public class Dashboard extends JFrame{
@@ -104,11 +97,7 @@ public class Dashboard extends JFrame{
         
         
         password_pin.setBounds(120,260,100,30);
-        //Setting maximum character to be four
-        MaxLengthTextDocument maxLength = new MaxLengthTextDocument();
-	maxLength.setMaxChars(5);//4 is a maximum number of character 
-
-	password_pin.setDocument(maxLength);
+	password_pin.setDocument(new MaxLengthTextDocument(5));        
         side_right.add(password_pin);
         
         btn_login.setForeground(Color.white);
@@ -150,35 +139,9 @@ public class Dashboard extends JFrame{
                 if (textField_accountnumber.getText().isEmpty() || String.valueOf(password_pin.getPassword()).isEmpty()) {
                     JOptionPane.showMessageDialog(Dashboard.this, "Please fill in all fields");
                 }else{
-                    try {
-                       Class.forName(DatabaseConnection.DRIVER);
-                       Connection connection = DriverManager.getConnection(DatabaseConnection.URL, DatabaseConnection.USER, DatabaseConnection.PASSWORD);
-                       //Check user exists using National ID number
-                       String query = "SELECT * FROM account WHERE account_number = ?;";
-                       PreparedStatement prepared_statement = connection.prepareStatement(query);
-                       prepared_statement.setString(1,textField_accountnumber.getText());
-                       ResultSet results = prepared_statement.executeQuery();
-                       
-                       String passwordStored; 
-                        if (results.next()) {
-                            passwordStored = results.getString("hashedPin");
-                            boolean matched = BCrypt.checkpw(String.valueOf(password_pin.getPassword()), passwordStored);
-                            if (!matched) {
-                                JOptionPane.showMessageDialog(Dashboard.this, "Wrong combination of account number and pin. Please try again");
-                            }else{
-                                Dashboard.this.dispose();
-                                Transactions.account_number = textField_accountnumber.getText();
-                                new Transactions().setVisible(true);
-                            }
-                        }else{
-                            JOptionPane.showMessageDialog(Dashboard.this, "The account doesn't exist");
-                        }
-                        
-                        connection.close();
-                        prepared_statement.close();
-                    } catch (ClassNotFoundException | SQLException ex) {
-                        Logger.getLogger(Dashboard.class.getName()).log(Level.SEVERE, null, ex);
-                    }
+                    
+                    EntityOperations.Login(textField_accountnumber.getText(), String.valueOf(password_pin.getPassword()), Dashboard.this);
+                    
                 }
             }
         });
