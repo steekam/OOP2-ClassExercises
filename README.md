@@ -15,7 +15,8 @@ Package BankActivity is the main project :<br>
             <li>Java</li>
             <li>GUI built with swingx</li>
             <li>Various dependency classes which help with certain features</li>
-            <li>Developed on Netbeans IDE</li>            
+            <li>Developed on Netbeans IDE</li>
+           <li>Mysql for the database</li>
           </ul>
 <h2>Contributors:</h2>
 Wanyee Stephen Kamau
