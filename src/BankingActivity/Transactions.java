@@ -214,9 +214,7 @@ public class Transactions extends JFrame{
             pnl_transactions.addMouseListener(new MouseAdapter() {
                 @Override
                 public void mouseClicked(MouseEvent e) {
-                    pnl_deposit.setBackground(new Color(53, 99, 96));
-                    btn_deposit.setVisible(true);
-                    btn_withdraw.setVisible(false);
+                    pnl_deposit.setBackground(new Color(53, 99, 96));                    
                     cl.show(pnl_cardLayout, "card_display");
                 }
                 
